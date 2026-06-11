@@ -17,7 +17,7 @@ public class AuthController(IAuthService authService, ICartService cartService) 
         var success = await authService.RegisterAsync(registerDto);
         if (!success)
         {
-            return BadRequest("Username already exists.");
+            return Problem(detail: "Username already exists.", statusCode: StatusCodes.Status400BadRequest);
         }
         return Ok("User registered successfully.");
     }
@@ -29,7 +29,7 @@ public class AuthController(IAuthService authService, ICartService cartService) 
         var (loginResponse, token) = await authService.LoginAsync(loginDto);
         if (loginResponse == null || token == null)
         {
-            return Unauthorized("Invalid username or password.");
+            return Problem(detail: "Invalid username or password.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
         // Merge the session cart into the user cart when present.

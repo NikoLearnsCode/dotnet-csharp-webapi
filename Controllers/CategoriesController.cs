@@ -9,40 +9,21 @@ namespace dotnet_backend_2.Controllers;
 [Route("api/[controller]")]
 public class CategoriesController(ICategoryService categoryService) : ControllerBase
 {
-    private const int MaxProductsLimit = 50;
-    private const int DefaultMaxProducts = 10;
-
-    [HttpGet]
-    public async Task<ActionResult<List<CategoryDto>>> GetCategories(
-        bool includeProducts = false,
-        string? slug = null,
-        int maxProducts = DefaultMaxProducts)
+    [HttpGet("tree")]
+    public async Task<ActionResult<List<CategoryTreeDto>>> GetCategoryTree()
     {
-        if (maxProducts > MaxProductsLimit)
-        {
-            maxProducts = MaxProductsLimit;
-        }
-
-        var categories = await categoryService.GetAllAsync(includeProducts, slug, maxProducts);
-        return Ok(categories);
+        var tree = await categoryService.GetCategoryTreeAsync();
+        return Ok(tree);
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<CategoryDto>> GetCategory(
-        int id,
-        bool includeProducts = true,
-        int maxProducts = DefaultMaxProducts)
+    public async Task<ActionResult<CategoryDto>> GetCategory(int id)
     {
-        if (maxProducts > MaxProductsLimit)
-        {
-            maxProducts = MaxProductsLimit;
-        }
-
-        var category = await categoryService.GetByIdAsync(id, includeProducts, maxProducts);
+        var category = await categoryService.GetByIdAsync(id);
 
         if (category == null)
         {
-            return NotFound($"Category with ID {id} not found.");
+            return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(category);
@@ -59,7 +40,7 @@ public class CategoriesController(ICategoryService categoryService) : Controller
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
@@ -72,18 +53,18 @@ public class CategoriesController(ICategoryService categoryService) : Controller
             var category = await categoryService.UpdateAsync(id, updateDto);
 
             if (category is null)
-                return NotFound($"Category with ID {id} not found.");
+                return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
 
             return Ok(category);
 
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
-    
+
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
@@ -94,13 +75,14 @@ public class CategoriesController(ICategoryService categoryService) : Controller
             var success = await categoryService.DeleteAsync(id);
 
             if (!success)
-                return NotFound($"Category with ID {id} not found.");
+                return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
 
             return NoContent();
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            // The category exists but its current state (subcategories/products) blocks deletion.
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
         }
     }
 }

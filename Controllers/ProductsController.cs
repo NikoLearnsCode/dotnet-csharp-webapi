@@ -59,7 +59,7 @@ public class ProductsController(IProductService productService) : ControllerBase
 
         if (product == null)
         {
-            return NotFound($"Product with ID {id} not found.");
+            return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(product);
@@ -72,7 +72,7 @@ public class ProductsController(IProductService productService) : ControllerBase
 
         if (result == null)
         {
-            return NotFound($"Product with slug '{slug}' not found.");
+            return Problem(detail: $"Product with slug '{slug}' not found.", statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(result);
@@ -91,7 +91,7 @@ public class ProductsController(IProductService productService) : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
@@ -104,13 +104,13 @@ public class ProductsController(IProductService productService) : ControllerBase
             var product = await productService.UpdateAsync(id, updateDto);
 
             if (product is null)
-                return NotFound($"Product with ID {id} not found.");
+                return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
 
             return Ok(product);
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
 
@@ -121,7 +121,7 @@ public class ProductsController(IProductService productService) : ControllerBase
         var success = await productService.DeleteAsync(id);
 
         if (!success)
-            return NotFound($"Product with ID {id} not found.");
+            return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
 
         return NoContent();
     }

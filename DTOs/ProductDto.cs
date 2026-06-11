@@ -9,7 +9,15 @@ public record ProductDto(
     decimal Price,
     string ImageUrl,
     string UrlSlug,
-    List<CategorySummaryDto>? Category
+    List<ProductCategoryDto>? Category
+);
+
+// A category a product belongs to, plus its full breadcrumb path
+public record ProductCategoryDto(
+    int Id,
+    string Name,
+    string UrlSlug,
+    List<CategorySummaryDto> Path
 );
 
 public record CategorySummaryDto(

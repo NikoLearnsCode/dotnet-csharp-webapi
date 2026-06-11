@@ -58,7 +58,7 @@ public class CartController(ICartService cartService) : ControllerBase
 
         if (updatedCart == null)
         {
-            return BadRequest("Could not add item. Product not found.");
+            return Problem(detail: "Could not add item. Product not found.", statusCode: StatusCodes.Status400BadRequest);
         }
 
         return Ok(updatedCart);
@@ -72,7 +72,7 @@ public class CartController(ICartService cartService) : ControllerBase
 
         if (updatedCart == null)
         {
-            return BadRequest($"Could not update cart item. Item {cartItemId} not found in your cart.");
+            return Problem(detail: $"Could not update cart item. Item {cartItemId} not found in your cart.", statusCode: StatusCodes.Status400BadRequest);
         }
 
         return Ok(updatedCart);

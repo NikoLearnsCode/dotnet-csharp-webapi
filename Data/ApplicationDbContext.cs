@@ -25,6 +25,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasPrecision(18, 2);
         });
 
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasOne(c => c.Parent)
+                .WithMany(c => c.Children)
+                .HasForeignKey(c => c.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Order>(entity =>
         {
             entity.Property(e => e.TotalAmount)

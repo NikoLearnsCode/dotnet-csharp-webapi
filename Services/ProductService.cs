@@ -13,11 +13,19 @@ public class ProductService(ApplicationDbContext context) : IProductService
     {
         var query = context.Products.AsQueryable();
 
+        // One category load per request, shared by the subtree filter and the breadcrumb paths.
+        var categoryLookup = includeCategories || !string.IsNullOrEmpty(categorySlug)
+            ? await LoadCategoryLookupAsync()
+            : null;
+
         if (!string.IsNullOrEmpty(slug))
             query = query.Where(p => p.UrlSlug == slug);
 
         if (!string.IsNullOrEmpty(categorySlug))
-            query = query.Where(p => p.Categories.Any(c => c.UrlSlug == categorySlug));
+        {
+            var categoryIds = GetCategorySubtreeIds(categorySlug, categoryLookup!);
+            query = query.Where(p => p.Categories.Any(c => categoryIds.Contains(c.Id)));
+        }
 
         if (includeCategories)
             query = query.Include(p => p.Categories);
@@ -29,7 +37,7 @@ public class ProductService(ApplicationDbContext context) : IProductService
             .Take(pageSize)
             .ToListAsync();
 
-        var productDtos = products.Select(p => MapToDto(p, includeCategories, includeImages)).ToList();
+        var productDtos = products.Select(p => MapToDto(p, includeCategories, categoryLookup, includeImages)).ToList();
 
         return new PagedList<ProductDto>(productDtos, totalCount, pageNumber, pageSize);
     }
@@ -39,9 +47,15 @@ public class ProductService(ApplicationDbContext context) : IProductService
     {
         var query = context.Products.AsQueryable();
 
+        // One category load per request, shared by the subtree filter and the breadcrumb paths.
+        var categoryLookup = includeCategories || !string.IsNullOrEmpty(categorySlug)
+            ? await LoadCategoryLookupAsync()
+            : null;
+
         if (!string.IsNullOrEmpty(categorySlug))
         {
-            query = query.Where(p => p.Categories.Any(c => c.UrlSlug == categorySlug));
+            var categoryIds = GetCategorySubtreeIds(categorySlug, categoryLookup!);
+            query = query.Where(p => p.Categories.Any(c => categoryIds.Contains(c.Id)));
         }
         /*
                 if (!string.IsNullOrEmpty(searchTerm))
@@ -97,7 +111,7 @@ public class ProductService(ApplicationDbContext context) : IProductService
             products = [.. products.Take(limit)];
         }
 
-        var productDtos = products.Select(p => MapToDto(p, includeCategories)).ToList();
+        var productDtos = products.Select(p => MapToDto(p, includeCategories, categoryLookup)).ToList();
 
         return new CursorPagedList<ProductDto>
         {
@@ -114,7 +128,10 @@ public class ProductService(ApplicationDbContext context) : IProductService
             query = query.Include(p => p.Categories);
 
         var product = await query.FirstOrDefaultAsync(p => p.Id == id);
-        return product is not null ? MapToDto(product, includeCategories) : null;
+        if (product is null) return null;
+
+        var categoryLookup = includeCategories ? await LoadCategoryLookupAsync() : null;
+        return MapToDto(product, includeCategories, categoryLookup);
     }
 
     public async Task<ProductWithRelatedDto?> GetBySlugAsync(string slug, bool includeCategories)
@@ -138,8 +155,9 @@ public class ProductService(ApplicationDbContext context) : IProductService
             .Take(8)
             .ToListAsync();
 
-        var productDto = MapToDto(product, includeCategories);
-        var relatedProductDtos = relatedProducts.Select(p => MapToDto(p, includeCategories)).ToList();
+        var categoryLookup = includeCategories ? await LoadCategoryLookupAsync() : null;
+        var productDto = MapToDto(product, includeCategories, categoryLookup);
+        var relatedProductDtos = relatedProducts.Select(p => MapToDto(p, includeCategories, categoryLookup)).ToList();
 
         return new ProductWithRelatedDto(productDto, relatedProductDtos);
     }
@@ -157,16 +175,7 @@ public class ProductService(ApplicationDbContext context) : IProductService
             throw new InvalidOperationException("At least one category must be specified.");
         }
 
-        var categories = await context.Categories
-            .Where(c => createDto.CategoryIds.Contains(c.Id))
-            .ToListAsync();
-
-        if (categories.Count != createDto.CategoryIds.Count)
-        {
-            var foundCategoryIds = categories.Select(c => c.Id);
-            var missingCategoryIds = createDto.CategoryIds.Except(foundCategoryIds);
-            throw new InvalidOperationException($"The following category IDs were not found: {string.Join(", ", missingCategoryIds)}");
-        }
+        var categories = await GetValidatedLeafCategoriesAsync(createDto.CategoryIds);
 
         var product = new Product
         {
@@ -180,7 +189,9 @@ public class ProductService(ApplicationDbContext context) : IProductService
 
         context.Products.Add(product);
         await context.SaveChangesAsync();
-        return MapToDto(product, true);
+
+        var categoryLookup = await LoadCategoryLookupAsync();
+        return MapToDto(product, true, categoryLookup);
     }
 
     public async Task<ProductDto?> UpdateAsync(int id, UpdateProductDto updateDto)
@@ -215,23 +226,13 @@ public class ProductService(ApplicationDbContext context) : IProductService
                 throw new InvalidOperationException("A product must belong to at least one category. To keep categories unchanged, omit 'categoryIds' from the request.");
             }
 
-            var categories = await context.Categories
-                .Where(c => updateDto.CategoryIds.Contains(c.Id))
-                .ToListAsync();
-
-            if (categories.Count != updateDto.CategoryIds.Count)
-            {
-                var foundCategoryIds = categories.Select(c => c.Id);
-                var missingCategoryIds = updateDto.CategoryIds.Except(foundCategoryIds);
-
-                throw new InvalidOperationException($"The following category IDs do not exist: {string.Join(", ", missingCategoryIds)}");
-            }
-
-            product.Categories = categories;
+            product.Categories = await GetValidatedLeafCategoriesAsync(updateDto.CategoryIds);
         }
 
         await context.SaveChangesAsync();
-        return MapToDto(product, true);
+
+        var categoryLookup = await LoadCategoryLookupAsync();
+        return MapToDto(product, true, categoryLookup);
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -244,7 +245,57 @@ public class ProductService(ApplicationDbContext context) : IProductService
         return true;
     }
 
-    private static ProductDto MapToDto(Product product, bool includeCategories, bool includeImages = true) => new(
+    // Loads the categories for a product assignment. All ids must exist and be LEAF
+    // categories - BRANCH categories are containers for subcategories and cannot hold products.
+    private async Task<List<Category>> GetValidatedLeafCategoriesAsync(List<int> categoryIds)
+    {
+        var categories = await context.Categories
+            .Where(c => categoryIds.Contains(c.Id))
+            .ToListAsync();
+
+        if (categories.Count != categoryIds.Count)
+        {
+            var foundCategoryIds = categories.Select(c => c.Id);
+            var missingCategoryIds = categoryIds.Except(foundCategoryIds);
+            throw new InvalidOperationException($"The following category IDs were not found: {string.Join(", ", missingCategoryIds)}");
+        }
+
+        var branchNames = categories
+            .Where(c => c.Type == CategoryType.Branch)
+            .Select(c => $"'{c.Name}'")
+            .ToList();
+
+        if (branchNames.Count > 0)
+            throw new InvalidOperationException(
+                $"Products can only be placed in LEAF categories. {string.Join(", ", branchNames)} is a BRANCH category.");
+
+        return categories;
+    }
+
+    // Resolves a category slug to that category's id plus all of its descendants',
+    // so filtering by a parent category also returns products from its subcategories.
+    private static List<int> GetCategorySubtreeIds(string categorySlug, IReadOnlyDictionary<int, CategoryNode> lookup)
+    {
+        var root = lookup.FirstOrDefault(kvp => kvp.Value.UrlSlug == categorySlug);
+        if (root.Value is null) return [];
+
+        var childIdsByParentId = lookup.ToLookup(kvp => kvp.Value.ParentId, kvp => kvp.Key);
+
+        var ids = new List<int>();
+        var stack = new Stack<int>();
+        stack.Push(root.Key);
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            ids.Add(id);
+            foreach (var childId in childIdsByParentId[id])
+                stack.Push(childId);
+        }
+
+        return ids;
+    }
+
+    private static ProductDto MapToDto(Product product, bool includeCategories, IReadOnlyDictionary<int, CategoryNode>? categoryLookup = null, bool includeImages = true) => new(
         product.Id,
         product.Name,
         product.Description,
@@ -252,11 +303,35 @@ public class ProductService(ApplicationDbContext context) : IProductService
         includeImages ? product.ImageUrl : string.Empty,
         product.UrlSlug,
         includeCategories
-            ? [.. product.Categories.Select(c => new CategorySummaryDto(
+            ? [.. product.Categories.Select(c => new ProductCategoryDto(
                 c.Id,
                 c.Name,
-                c.UrlSlug
+                c.UrlSlug,
+                BuildCategoryPath(c.Id, categoryLookup!)
             ))]
             : []
     );
+
+    // Lightweight category node for resolving breadcrumb paths in memory.
+    private sealed record CategoryNode(string Name, string UrlSlug, int? ParentId);
+
+    private async Task<Dictionary<int, CategoryNode>> LoadCategoryLookupAsync() =>
+        await context.Categories
+            .AsNoTracking()
+            .ToDictionaryAsync(c => c.Id, c => new CategoryNode(c.Name, c.UrlSlug, c.ParentId));
+
+    // Builds the breadcrumb path (root → … → category) by walking up the ParentId chain.
+    private static List<CategorySummaryDto> BuildCategoryPath(int categoryId, IReadOnlyDictionary<int, CategoryNode> lookup)
+    {
+        var path = new List<CategorySummaryDto>();
+        int? cursor = categoryId;
+        while (cursor is not null && lookup.TryGetValue(cursor.Value, out var node))
+        {
+            if (path.Count > lookup.Count)
+                throw new InvalidOperationException("Category hierarchy contains a cycle.");
+            path.Insert(0, new CategorySummaryDto(cursor.Value, node.Name, node.UrlSlug));
+            cursor = node.ParentId;
+        }
+        return path;
+    }
 }

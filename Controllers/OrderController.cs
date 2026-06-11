@@ -47,7 +47,7 @@ public class OrderController(IOrderService orderService) : ControllerBase
 
         if (order == null)
         {
-            return BadRequest("Could not create order. Cart is empty or products unavailable.");
+            return Problem(detail: "Could not create order. Cart is empty or products unavailable.", statusCode: StatusCodes.Status400BadRequest);
         }
 
         return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, order);
@@ -69,7 +69,7 @@ public class OrderController(IOrderService orderService) : ControllerBase
 
         if (order == null)
         {
-            return NotFound($"Order {id} not found.");
+            return Problem(detail: $"Order {id} not found.", statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(order);
@@ -81,14 +81,14 @@ public class OrderController(IOrderService orderService) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            return BadRequest("Confirmation token is required.");
+            return Problem(detail: "Confirmation token is required.", statusCode: StatusCodes.Status400BadRequest);
         }
 
         var order = await orderService.GetOrderByConfirmationTokenAsync(id, token);
 
         if (order == null)
         {
-            return NotFound("Order not found or invalid confirmation token.");
+            return Problem(detail: "Order not found or invalid confirmation token.", statusCode: StatusCodes.Status404NotFound);
         }
 
         return Ok(order);
