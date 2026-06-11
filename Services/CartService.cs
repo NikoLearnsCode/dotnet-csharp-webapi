@@ -1,15 +1,14 @@
 using System.Net.Mime;
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using dotnet_backend_2.Data;
 using dotnet_backend_2.Data.Entities;
 using dotnet_backend_2.DTOs;
+using dotnet_backend_2.Mapping;
 
 using Microsoft.EntityFrameworkCore;
 
 namespace dotnet_backend_2.Services
 {
-    public class CartService(ApplicationDbContext context, IMapper mapper) : ICartService
+    public class CartService(ApplicationDbContext context) : ICartService
     {
         public async Task<CartDto?> GetCartAsync(int? userId, string? sessionId)
         {
@@ -19,7 +18,7 @@ namespace dotnet_backend_2.Services
                            (sessionId != null && c.SessionId == sessionId));
 
             var cartDto = await cartQuery
-                .ProjectTo<CartDto>(mapper.ConfigurationProvider)
+                .ProjectToDto()
                 .FirstOrDefaultAsync();
 
             return cartDto;

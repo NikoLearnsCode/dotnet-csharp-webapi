@@ -1,13 +1,12 @@
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using dotnet_backend_2.Data;
 using dotnet_backend_2.Data.Entities;
 using dotnet_backend_2.DTOs;
+using dotnet_backend_2.Mapping;
 using Microsoft.EntityFrameworkCore;
 
 namespace dotnet_backend_2.Services;
 
-public class OrderService(ApplicationDbContext context, IMapper mapper) : IOrderService
+public class OrderService(ApplicationDbContext context) : IOrderService
 {
     public async Task<OrderResponseDto?> CreateOrderFromCartAsync(int? userId, string? sessionId, CreateOrderFromCartDto orderDto)
     {
@@ -94,7 +93,7 @@ public class OrderService(ApplicationDbContext context, IMapper mapper) : IOrder
             .OrderByDescending(o => o.OrderDate);
 
         var orders = await query
-            .ProjectTo<OrderResponseDto>(mapper.ConfigurationProvider)
+            .ProjectToDto()
             .ToListAsync();
 
         return orders;
@@ -113,7 +112,7 @@ public class OrderService(ApplicationDbContext context, IMapper mapper) : IOrder
             .Where(o => o.Id == orderId &&
                        ((userId.HasValue && o.UserId == userId) ||
                         (sessionId != null && o.SessionId == sessionId)))
-            .ProjectTo<OrderResponseDto>(mapper.ConfigurationProvider)
+            .ProjectToDto()
             .FirstOrDefaultAsync();
 
         return order;
@@ -128,7 +127,7 @@ public class OrderService(ApplicationDbContext context, IMapper mapper) : IOrder
             .Where(o => o.Id == orderId
                         && o.ConfirmationToken == confirmationToken
                         && o.OrderDate > expirationLimit)
-            .ProjectTo<OrderResponseDto>(mapper.ConfigurationProvider)
+            .ProjectToDto()
             .FirstOrDefaultAsync();
 
         return order;

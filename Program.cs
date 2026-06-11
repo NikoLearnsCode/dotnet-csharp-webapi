@@ -29,7 +29,6 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<SecurityRequirementsOperationFilter>();
 });
 builder.Services.AddControllers();
-builder.Services.AddAutoMapper(typeof(Program));
 
 builder.Services.AddCors(options =>
 {

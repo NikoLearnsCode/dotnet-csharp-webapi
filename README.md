@@ -4,8 +4,8 @@
 
 - `Controllers`: HTTP endpoints (Auth, Products, Categories, Cart, Orders).
 - `Services`: business logic and orchestration.
-- `Data`: EF Core `DbContext`, entities, seed data, migrations.
-- `DTOs` and `Mapping`: API contracts and AutoMapper profiles.
+- `Data`: EF Core `DbContext`, entities and seed data.
+- `DTOs` and `Mapping`: API contracts and manual LINQ projections.
 
 ## Local setup
 
