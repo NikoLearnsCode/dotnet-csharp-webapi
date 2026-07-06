@@ -1,4 +1,4 @@
-namespace dotnet_backend_2.Data.Entities;
+namespace WebApi.Data.Entities;
 
 /// <summary>
 /// Explicit node type, chosen by the admin when the category is created.

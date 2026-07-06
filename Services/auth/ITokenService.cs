@@ -1,41 +1,60 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using dotnet_backend_2.Data.Entities;
+using WebApi.Data.Entities;
 
-namespace dotnet_backend_2.Services.Auth;
+namespace WebApi.Services.Auth;
 
 public interface ITokenService
 {
-    string CreateToken(User user);
+    string CreateAccessToken(User user);
+
+    /// <summary>Cryptographically random opaque refresh token (base64url).</summary>
+    string CreateRefreshTokenValue();
+
+    /// <summary>SHA-256 hash used for storage and lookup; the raw value never touches the database.</summary>
+    string HashToken(string rawToken);
 }
 
-public class TokenService(IConfiguration configuration) : ITokenService
+public class TokenService(IOptions<JwtOptions> jwtOptions, TimeProvider timeProvider)
+    : ITokenService
 {
-    public string CreateToken(User user)
+    public string CreateAccessToken(User user)
     {
+        var options = jwtOptions.Value;
+        var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        var claims = new List<Claim>
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Key));
+
+        var descriptor = new SecurityTokenDescriptor
         {
-            new(ClaimTypes.Name, user.Username),
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Role, user.Role)
+            Subject = new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.Name, user.Username),
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Role, user.Role),
+                    // Unique token id; also guarantees two tokens minted within the
+                    // same second (login immediately followed by refresh) differ.
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                ]
+            ),
+            Issuer = options.Issuer,
+            Audience = options.Audience,
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now + options.AccessTokenLifetime,
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha512),
         };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            configuration.GetSection("Jwt:Key").Value!));
-
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
-
-        var token = new JwtSecurityToken(
-            issuer: configuration.GetSection("Jwt:Issuer").Value,
-            audience: configuration.GetSection("Jwt:Audience").Value,
-            claims: claims,
-            expires: DateTime.Now.AddDays(1),
-            signingCredentials: creds
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return new JsonWebTokenHandler().CreateToken(descriptor);
     }
+
+    public string CreateRefreshTokenValue() =>
+        Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(64));
+
+    public string HashToken(string rawToken) =>
+        Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 }

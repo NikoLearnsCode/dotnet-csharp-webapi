@@ -1,6 +1,6 @@
-using dotnet_backend_2.DTOs;
+using WebApi.DTOs;
 
-namespace dotnet_backend_2.Services;
+namespace WebApi.Services;
 
 public interface ICategoryService
 {

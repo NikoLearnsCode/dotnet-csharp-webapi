@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using WebApi.DTOs;
+using WebApi.Services;
 
-namespace dotnet_backend_2.Controllers;
+namespace WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -23,7 +23,10 @@ public class CategoriesController(ICategoryService categoryService) : Controller
 
         if (category == null)
         {
-            return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+            return Problem(
+                detail: $"Category with ID {id} not found.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(category);
@@ -53,18 +56,18 @@ public class CategoriesController(ICategoryService categoryService) : Controller
             var category = await categoryService.UpdateAsync(id, updateDto);
 
             if (category is null)
-                return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+                return Problem(
+                    detail: $"Category with ID {id} not found.",
+                    statusCode: StatusCodes.Status404NotFound
+                );
 
             return Ok(category);
-
         }
         catch (InvalidOperationException ex)
         {
             return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
     }
-
-
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
@@ -75,7 +78,10 @@ public class CategoriesController(ICategoryService categoryService) : Controller
             var success = await categoryService.DeleteAsync(id);
 
             if (!success)
-                return Problem(detail: $"Category with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+                return Problem(
+                    detail: $"Category with ID {id} not found.",
+                    statusCode: StatusCodes.Status404NotFound
+                );
 
             return NoContent();
         }

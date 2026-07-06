@@ -1,7 +1,7 @@
-using dotnet_backend_2.Data.Entities;
-using dotnet_backend_2.DTOs;
+using WebApi.Data.Entities;
+using WebApi.DTOs;
 
-namespace dotnet_backend_2.Mapping;
+namespace WebApi.Mapping;
 
 public static class CartProjections
 {
@@ -9,20 +9,22 @@ public static class CartProjections
         carts.Select(cart => new CartDto
         {
             Id = cart.Id,
-            Items = cart.Items.Select(item => new CartItemDto
-            {
-                Id = item.Id,
-                ProductId = item.ProductId!.Value,
+            Items = cart
+                .Items.Select(item => new CartItemDto
+                {
+                    Id = item.Id,
+                    ProductId = item.ProductId!.Value,
 
-                ProductName = item.Product!.Name,
-                ProductUrlSlug = item.Product!.UrlSlug,
-                ProductPrice = item.Product!.Price,
-                ProductImageUrl = item.Product!.ImageUrl,
+                    ProductName = item.Product!.Name,
+                    ProductUrlSlug = item.Product!.UrlSlug,
+                    ProductPrice = item.Product!.Price,
+                    ProductImageUrl = item.Product!.ImageUrl,
 
-                Quantity = item.Quantity,
-                LineTotal = item.Product!.Price * item.Quantity
-            }).ToList(),
+                    Quantity = item.Quantity,
+                    LineTotal = item.Product!.Price * item.Quantity,
+                })
+                .ToList(),
             TotalItems = cart.Items.Sum(item => item.Quantity),
-            SubTotal = cart.Items.Sum(item => item.Product!.Price * item.Quantity)
+            SubTotal = cart.Items.Sum(item => item.Product!.Price * item.Quantity),
         });
 }

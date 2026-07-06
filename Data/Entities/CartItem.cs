@@ -1,4 +1,4 @@
-namespace dotnet_backend_2.Data.Entities;
+namespace WebApi.Data.Entities;
 
 public class CartItem
 {

@@ -1,70 +1,118 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Services.Auth;
-using dotnet_backend_2.Services;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+using WebApi.DTOs;
+using WebApi.Services;
+using WebApi.Services.Auth;
 
-namespace dotnet_backend_2.Controllers;
+namespace WebApi.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class AuthController(IAuthService authService, ICartService cartService) : ControllerBase
+// Literal lowercase route (not [controller], which yields "api/Auth"): the refresh
+// cookie is scoped to AuthCookie.RefreshPath and RFC 6265 path matching is
+// case-sensitive, so clients that build URLs from the route template (Swagger UI)
+// must hit the exact casing of the cookie path or the cookie is never sent.
+[Route("api/auth")]
+public class AuthController(
+    IAuthService authService,
+    ICartService cartService,
+    IOptions<JwtOptions> jwtOptions,
+    IWebHostEnvironment environment
+) : ControllerBase
 {
+    // Secure follows the request scheme in Development so the JWT flow is testable
+    // over plain http in strict clients (Insomnia et al.; browsers already treat
+    // http://localhost as trustworthy). Outside Development it is unconditional -
+    // see the rationale in AuthCookie.
+    private bool SecureCookies => !environment.IsDevelopment() || Request.IsHttps;
+
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register(RegisterDto registerDto)
     {
         var success = await authService.RegisterAsync(registerDto);
         if (!success)
         {
-            return Problem(detail: "Username already exists.", statusCode: StatusCodes.Status400BadRequest);
+            return Problem(
+                detail: "Username already exists.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
-        return Ok("User registered successfully.");
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new { Message = "User registered successfully." }
+        );
     }
 
-
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginDto loginDto)
     {
-        var (loginResponse, token) = await authService.LoginAsync(loginDto);
-        if (loginResponse == null || token == null)
+        var (loginResponse, tokens) = await authService.LoginAsync(loginDto);
+        if (loginResponse == null || tokens == null)
         {
-            return Problem(detail: "Invalid username or password.", statusCode: StatusCodes.Status401Unauthorized);
+            return Problem(
+                detail: "Invalid username or password.",
+                statusCode: StatusCodes.Status401Unauthorized
+            );
         }
 
         // Merge the session cart into the user cart when present.
         var sessionId = Request.Cookies["cartSessionId"];
-        int mergedItems = 0;
+        var mergedItems = 0;
         if (!string.IsNullOrEmpty(sessionId))
         {
-            mergedItems = await cartService.MergeSessionCartToUserAsync(sessionId, loginResponse.UserId);
+            mergedItems = await cartService.MergeSessionCartToUserAsync(
+                sessionId,
+                loginResponse.UserId
+            );
             Response.Cookies.Delete("cartSessionId");
         }
 
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Expires = DateTimeOffset.UtcNow.AddDays(1)
-        };
+        SetAuthCookies(tokens);
 
-        Response.Cookies.Append("jwt", token, cookieOptions);
-
-        return Ok(new
-        {
-            loginResponse.Username,
-            loginResponse.Role,
-            loginResponse.UserId,
-            CartItemsMerged = mergedItems
-        });
+        return Ok(
+            new
+            {
+                loginResponse.Username,
+                loginResponse.Role,
+                loginResponse.UserId,
+                CartItemsMerged = mergedItems,
+            }
+        );
     }
 
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> Refresh()
+    {
+        var rawRefreshToken = Request.Cookies[AuthCookie.RefreshName];
+        if (!string.IsNullOrEmpty(rawRefreshToken))
+        {
+            var tokens = await authService.RefreshAsync(rawRefreshToken);
+            if (tokens is not null)
+            {
+                SetAuthCookies(tokens);
+                return Ok(new { Message = "Token refreshed." });
+            }
+        }
+
+        DeleteAuthCookies();
+        return Problem(
+            detail: "Invalid or expired refresh token.",
+            statusCode: StatusCodes.Status401Unauthorized
+        );
+    }
 
     [HttpPost("logout")]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
-        Response.Cookies.Delete("jwt");
+        await authService.LogoutAsync(Request.Cookies[AuthCookie.RefreshName]);
+        DeleteAuthCookies();
         return Ok(new { Message = "Logged out successfully." });
     }
 
@@ -83,11 +131,41 @@ public class AuthController(IAuthService authService, ICartService cartService) 
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-        return Ok(new
-        {
-            username,
-            userId,
-            role,
-        });
+        return Ok(
+            new
+            {
+                username,
+                userId,
+                role,
+            }
+        );
+    }
+
+    private void SetAuthCookies(AuthTokens tokens)
+    {
+        var options = jwtOptions.Value;
+        Response.Cookies.Append(
+            AuthCookie.Name,
+            tokens.AccessToken,
+            AuthCookie.AccessOptions(options.AccessTokenLifetime, SecureCookies)
+        );
+        Response.Cookies.Append(
+            AuthCookie.RefreshName,
+            tokens.RefreshToken,
+            AuthCookie.RefreshOptions(options.RefreshTokenLifetime, SecureCookies)
+        );
+    }
+
+    private void DeleteAuthCookies()
+    {
+        // Deleting a path-scoped cookie requires the same attributes it was set with.
+        Response.Cookies.Delete(
+            AuthCookie.Name,
+            AuthCookie.AccessOptions(TimeSpan.Zero, SecureCookies)
+        );
+        Response.Cookies.Delete(
+            AuthCookie.RefreshName,
+            AuthCookie.RefreshOptions(TimeSpan.Zero, SecureCookies)
+        );
     }
 }

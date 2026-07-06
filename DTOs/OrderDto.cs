@@ -1,8 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using dotnet_backend_2.Data.Entities;
 
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 // Request DTO
 public class CreateOrderFromCartDto

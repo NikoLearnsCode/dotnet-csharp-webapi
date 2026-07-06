@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 public record ProductDto(
     int Id,
@@ -20,11 +20,7 @@ public record ProductCategoryDto(
     List<CategorySummaryDto> Path
 );
 
-public record CategorySummaryDto(
-    int Id,
-    string Name,
-    string UrlSlug
-);
+public record CategorySummaryDto(int Id, string Name, string UrlSlug);
 
 public class CreateProductDto
 {
@@ -69,7 +65,4 @@ public class UpdateProductDto
     public List<int>? CategoryIds { get; set; }
 }
 
-public record ProductWithRelatedDto(
-    ProductDto Product,
-    List<ProductDto> RelatedProducts
-);
+public record ProductWithRelatedDto(ProductDto Product, List<ProductDto> RelatedProducts);

@@ -1,7 +1,7 @@
-using dotnet_backend_2.Data.Entities;
-using dotnet_backend_2.DTOs;
+using WebApi.Data.Entities;
+using WebApi.DTOs;
 
-namespace dotnet_backend_2.Mapping;
+namespace WebApi.Mapping;
 
 public static class OrderProjections
 {
@@ -21,20 +21,22 @@ public static class OrderProjections
             {
                 Street = order.ShippingAddress.Street,
                 PostalCode = order.ShippingAddress.PostalCode,
-                City = order.ShippingAddress.City
+                City = order.ShippingAddress.City,
             },
-            OrderItems = order.OrderItems.Select(item => new OrderItemResponseDto
-            {
-                Id = item.Id,
-                ProductId = item.ProductId,
+            OrderItems = order
+                .OrderItems.Select(item => new OrderItemResponseDto
+                {
+                    Id = item.Id,
+                    ProductId = item.ProductId,
 
-                ProductName = item.Product.Name,
-                ProductUrlSlug = item.Product.UrlSlug,
-                ProductImageUrl = item.Product.ImageUrl,
+                    ProductName = item.Product.Name,
+                    ProductUrlSlug = item.Product.UrlSlug,
+                    ProductImageUrl = item.Product.ImageUrl,
 
-                Quantity = item.Quantity,
-                UnitPrice = item.UnitPrice,
-                LineTotal = item.UnitPrice * item.Quantity
-            }).ToList()
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    LineTotal = item.UnitPrice * item.Quantity,
+                })
+                .ToList(),
         });
 }
