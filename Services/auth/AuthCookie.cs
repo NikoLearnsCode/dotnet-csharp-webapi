@@ -13,9 +13,12 @@ public static class AuthCookie
     public const string Name = "jwt";
     public const string RefreshName = "refreshToken";
 
-    // The refresh token is only ever needed by the auth endpoints; scoping the
-    // cookie keeps it out of every other request.
-    public const string RefreshPath = "/api/auth";
+    // Single source for the auth route prefix and the refresh cookie Path (RFC
+    // 6265 path matching is case-sensitive, so these must stay in sync). The
+    // refresh token is only sent to auth endpoints; scoping keeps it off the
+    // rest of the API.
+    public const string RoutePrefix = "api/auth";
+    public const string RefreshPath = "/" + RoutePrefix;
 
     public static CookieOptions AccessOptions(TimeSpan lifetime, bool secure) =>
         Base(lifetime, secure);

@@ -49,6 +49,7 @@ builder.Services.AddSwaggerGen(options =>
     );
     options.OperationFilter<SecurityRequirementsOperationFilter>();
 });
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddControllers();
 
 // Unhandled exceptions become RFC 7807 responses instead of empty 500s.

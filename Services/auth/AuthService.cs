@@ -17,9 +17,7 @@ public class AuthService(
     {
         var userNameLower = registerDto.Username.ToLower();
 
-        // CA1862 (StringComparison overload) can't be translated to SQL by EF Core;
-        // ToLower() maps to LOWER() in the query and must stay.
-        var existingUser = await context.Users.AnyAsync(u => u.Username.ToLower() == userNameLower);
+        var existingUser = await context.Users.AnyAsync(u => u.Username == userNameLower);
 
         if (existingUser)
             return false;
@@ -50,12 +48,9 @@ public class AuthService(
     {
         var usernameLower = loginDto.Username.ToLower();
 
-        // See RegisterAsync: ToLower() is required for EF's SQL translation (CA1862 N/A).
-#pragma warning disable CA1862
         var user = await context.Users.FirstOrDefaultAsync(u =>
             u.Username.ToLower() == usernameLower
         );
-#pragma warning restore CA1862
 
         if (user is null)
             return (null, null);

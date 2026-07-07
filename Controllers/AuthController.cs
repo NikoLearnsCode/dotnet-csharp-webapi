@@ -10,11 +10,7 @@ using WebApi.Services.Auth;
 namespace WebApi.Controllers;
 
 [ApiController]
-// Literal lowercase route (not [controller], which yields "api/Auth"): the refresh
-// cookie is scoped to AuthCookie.RefreshPath and RFC 6265 path matching is
-// case-sensitive, so clients that build URLs from the route template (Swagger UI)
-// must hit the exact casing of the cookie path or the cookie is never sent.
-[Route("api/auth")]
+[Route(AuthCookie.RoutePrefix)]
 public class AuthController(
     IAuthService authService,
     ICartService cartService,
