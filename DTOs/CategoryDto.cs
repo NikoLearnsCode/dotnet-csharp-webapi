@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 public record CategoryDto(
     int Id,

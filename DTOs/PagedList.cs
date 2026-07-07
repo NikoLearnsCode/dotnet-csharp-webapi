@@ -1,4 +1,4 @@
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 public class PagedList<T>(List<T> items, int count, int pageNumber, int pageSize)
 {

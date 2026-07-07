@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace dotnet_backend_2.Helpers;
+namespace WebApi.Helpers;
 
 public static partial class StringUtils
 {
@@ -9,9 +9,9 @@ public static partial class StringUtils
 
     [GeneratedRegex(@"-{2,}")]
     private static partial Regex MultipleHyphensRegex();
+
     public static string GenerateSlug(string text)
     {
-
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
 

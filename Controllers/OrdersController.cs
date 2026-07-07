@@ -1,14 +1,14 @@
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Services;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using WebApi.DTOs;
+using WebApi.Services;
 
-namespace dotnet_backend_2.Controllers;
+namespace WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class OrderController(IOrderService orderService) : ControllerBase
+public class OrdersController(IOrderService orderService) : ControllerBase
 {
     // Reuse the same identity strategy as CartController.
     private (int? userId, string? sessionId) GetIdentifier()
@@ -28,15 +28,14 @@ public class OrderController(IOrderService orderService) : ControllerBase
         if (string.IsNullOrEmpty(sessionId))
         {
             sessionId = Guid.NewGuid().ToString();
-            Response.Cookies.Append("cartSessionId", sessionId, new CookieOptions
-            {
-                HttpOnly = true,
-                Expires = DateTimeOffset.UtcNow.AddDays(30)
-            });
+            Response.Cookies.Append(
+                "cartSessionId",
+                sessionId,
+                new CookieOptions { HttpOnly = true, Expires = DateTimeOffset.UtcNow.AddDays(30) }
+            );
         }
 
         return (null, sessionId);
-
     }
 
     [HttpPost("checkout")]
@@ -47,7 +46,10 @@ public class OrderController(IOrderService orderService) : ControllerBase
 
         if (order == null)
         {
-            return Problem(detail: "Could not create order. Cart is empty or products unavailable.", statusCode: StatusCodes.Status400BadRequest);
+            return Problem(
+                detail: "Could not create order. Cart is empty or products unavailable.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
 
         return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, order);
@@ -69,7 +71,10 @@ public class OrderController(IOrderService orderService) : ControllerBase
 
         if (order == null)
         {
-            return Problem(detail: $"Order {id} not found.", statusCode: StatusCodes.Status404NotFound);
+            return Problem(
+                detail: $"Order {id} not found.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(order);
@@ -77,24 +82,29 @@ public class OrderController(IOrderService orderService) : ControllerBase
 
     [HttpGet("{id}/confirm")]
     [AllowAnonymous]
-    public async Task<ActionResult<OrderResponseDto>> GetOrderByConfirmationToken(int id, [FromQuery] string token)
+    public async Task<ActionResult<OrderResponseDto>> GetOrderByConfirmationToken(
+        int id,
+        [FromQuery] string token
+    )
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            return Problem(detail: "Confirmation token is required.", statusCode: StatusCodes.Status400BadRequest);
+            return Problem(
+                detail: "Confirmation token is required.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
 
         var order = await orderService.GetOrderByConfirmationTokenAsync(id, token);
 
         if (order == null)
         {
-            return Problem(detail: "Order not found or invalid confirmation token.", statusCode: StatusCodes.Status404NotFound);
+            return Problem(
+                detail: "Order not found or invalid confirmation token.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(order);
     }
 }
-
-
-
-

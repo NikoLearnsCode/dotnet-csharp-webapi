@@ -1,39 +1,45 @@
-using System.Net.Mime;
-using dotnet_backend_2.Data;
-using dotnet_backend_2.Data.Entities;
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Mapping;
-
 using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
+using WebApi.Data.Entities;
+using WebApi.DTOs;
+using WebApi.Mapping;
 
-namespace dotnet_backend_2.Services
+namespace WebApi.Services
 {
     public class CartService(ApplicationDbContext context) : ICartService
     {
         public async Task<CartDto?> GetCartAsync(int? userId, string? sessionId)
         {
-            var cartQuery = context.Carts
-                .AsNoTracking()
-                .Where(c => (userId.HasValue && c.UserId == userId) ||
-                           (sessionId != null && c.SessionId == sessionId));
+            var cartQuery = context
+                .Carts.AsNoTracking()
+                .Where(c =>
+                    (userId.HasValue && c.UserId == userId)
+                    || (sessionId != null && c.SessionId == sessionId)
+                );
 
-            var cartDto = await cartQuery
-                .ProjectToDto()
-                .FirstOrDefaultAsync();
+            var cartDto = await cartQuery.ProjectToDto().FirstOrDefaultAsync();
 
             return cartDto;
         }
 
-        public async Task<CartDto?> AddToCartAsync(int? userId, string? sessionId, AddToCartDto itemDto)
+        public async Task<CartDto?> AddToCartAsync(
+            int? userId,
+            string? sessionId,
+            AddToCartDto itemDto
+        )
         {
             //  Validate that the product exists.
             var productExist = await context.Products.AnyAsync(p => p.Id == itemDto.ProductId);
-            if (!productExist) return null;
+            if (!productExist)
+                return null;
 
             // Fetch the cart.
-            var cart = await context.Carts
-                .Include(c => c.Items)
-                .FirstOrDefaultAsync(c => (userId.HasValue && c.UserId == userId) || (sessionId != null && c.SessionId == sessionId));
+            var cart = await context
+                .Carts.Include(c => c.Items)
+                .FirstOrDefaultAsync(c =>
+                    (userId.HasValue && c.UserId == userId)
+                    || (sessionId != null && c.SessionId == sessionId)
+                );
 
             // Create a new cart if none exists.
             if (cart == null)
@@ -42,12 +48,14 @@ namespace dotnet_backend_2.Services
                 {
                     UserId = userId,
                     SessionId = sessionId,
-                    Items = []
+                    Items = [],
                 };
                 context.Carts.Add(cart);
             }
             // Update existing item quantity or create a new cart item.
-            var existingItem = cart.Items.FirstOrDefault(item => item.ProductId == itemDto.ProductId);
+            var existingItem = cart.Items.FirstOrDefault(item =>
+                item.ProductId == itemDto.ProductId
+            );
 
             if (existingItem != null)
             {
@@ -59,7 +67,6 @@ namespace dotnet_backend_2.Services
                 {
                     ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
-
                 };
                 cart.Items.Add(newItem);
             }
@@ -68,16 +75,26 @@ namespace dotnet_backend_2.Services
             return await GetCartAsync(userId, sessionId);
         }
 
-        public async Task<CartDto?> UpdateCartItemAsync(int? userId, string? sessionId, int cartItemId, UpdateCartItemDto updateDto)
+        public async Task<CartDto?> UpdateCartItemAsync(
+            int? userId,
+            string? sessionId,
+            int cartItemId,
+            UpdateCartItemDto updateDto
+        )
         {
             // Find cart item.
-            var cartItem = await context.CartItems
-                .Include(ci => ci.Cart)
-                .FirstOrDefaultAsync(ci => ci.Id == cartItemId &&
-                    ((userId.HasValue && ci.Cart!.UserId == userId) ||
-                     (sessionId != null && ci.Cart!.SessionId == sessionId)));
+            var cartItem = await context
+                .CartItems.Include(ci => ci.Cart)
+                .FirstOrDefaultAsync(ci =>
+                    ci.Id == cartItemId
+                    && (
+                        (userId.HasValue && ci.Cart!.UserId == userId)
+                        || (sessionId != null && ci.Cart!.SessionId == sessionId)
+                    )
+                );
 
-            if (cartItem == null) return null;
+            if (cartItem == null)
+                return null;
 
             // Update quantity.
             cartItem.Quantity = updateDto.Quantity;
@@ -90,13 +107,18 @@ namespace dotnet_backend_2.Services
         public async Task<bool> DeleteCartItemAsync(int? userId, string? sessionId, int cartItemId)
         {
             // Find cart item.
-            var cartItem = await context.CartItems
-                .Include(ci => ci.Cart)
-                .FirstOrDefaultAsync(ci => ci.Id == cartItemId &&
-                    ((userId.HasValue && ci.Cart!.UserId == userId) ||
-                     (sessionId != null && ci.Cart!.SessionId == sessionId)));
+            var cartItem = await context
+                .CartItems.Include(ci => ci.Cart)
+                .FirstOrDefaultAsync(ci =>
+                    ci.Id == cartItemId
+                    && (
+                        (userId.HasValue && ci.Cart!.UserId == userId)
+                        || (sessionId != null && ci.Cart!.SessionId == sessionId)
+                    )
+                );
 
-            if (cartItem == null) return false;
+            if (cartItem == null)
+                return false;
 
             // Remove cart item.
             context.CartItems.Remove(cartItem);
@@ -109,20 +131,21 @@ namespace dotnet_backend_2.Services
         public async Task<int> MergeSessionCartToUserAsync(string sessionId, int userId)
         {
             // Load session cart with items into memory.
-            var sessionCart = await context.Carts
-                .Include(c => c.Items)
+            var sessionCart = await context
+                .Carts.Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.SessionId == sessionId);
 
             // Verify session cart exists.
-            if (sessionCart == null || sessionCart.Items.Count == 0) return 0;
+            if (sessionCart == null || sessionCart.Items.Count == 0)
+                return 0;
 
             // Calculate how many units will be merged.
             // var mergedItemsCount = sessionCart.Items.Count;
             var mergedItemsCount = sessionCart.Items.Sum(item => item.Quantity); // Count total quantity.
 
             // Load user cart with items into memory.
-            var userCart = await context.Carts
-                .Include(c => c.Items)
+            var userCart = await context
+                .Carts.Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             // Check whether the user cart exists.
@@ -138,8 +161,9 @@ namespace dotnet_backend_2.Services
                 foreach (var sessionItem in sessionCart.Items)
                 {
                     // Search for matching item in loaded user cart.
-                    var existingItem = userCart.Items
-                        .FirstOrDefault(i => i.ProductId == sessionItem.ProductId);
+                    var existingItem = userCart.Items.FirstOrDefault(i =>
+                        i.ProductId == sessionItem.ProductId
+                    );
 
                     if (existingItem != null)
                     {
@@ -149,11 +173,13 @@ namespace dotnet_backend_2.Services
                     else
                     {
                         // Add new item to in-memory collection.
-                        userCart.Items.Add(new CartItem
-                        {
-                            ProductId = sessionItem.ProductId,
-                            Quantity = sessionItem.Quantity
-                        });
+                        userCart.Items.Add(
+                            new CartItem
+                            {
+                                ProductId = sessionItem.ProductId,
+                                Quantity = sessionItem.Quantity,
+                            }
+                        );
                     }
                 }
 
@@ -166,5 +192,4 @@ namespace dotnet_backend_2.Services
             return mergedItemsCount;
         }
     }
-
 }

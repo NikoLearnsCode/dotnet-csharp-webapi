@@ -1,9 +1,9 @@
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Services;
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
+using WebApi.DTOs;
+using WebApi.Services;
 
-namespace dotnet_backend_2.Controllers;
+namespace WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -26,11 +26,11 @@ public class CartController(ICartService cartService) : ControllerBase
         if (string.IsNullOrEmpty(sessionId))
         {
             sessionId = Guid.NewGuid().ToString();
-            Response.Cookies.Append("cartSessionId", sessionId, new CookieOptions
-            {
-                HttpOnly = true,
-                Expires = DateTimeOffset.UtcNow.AddDays(30)
-            });
+            Response.Cookies.Append(
+                "cartSessionId",
+                sessionId,
+                new CookieOptions { HttpOnly = true, Expires = DateTimeOffset.UtcNow.AddDays(30) }
+            );
         }
 
         return (null, sessionId);
@@ -58,7 +58,10 @@ public class CartController(ICartService cartService) : ControllerBase
 
         if (updatedCart == null)
         {
-            return Problem(detail: "Could not add item. Product not found.", statusCode: StatusCodes.Status400BadRequest);
+            return Problem(
+                detail: "Could not add item. Product not found.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
 
         return Ok(updatedCart);
@@ -68,11 +71,19 @@ public class CartController(ICartService cartService) : ControllerBase
     public async Task<IActionResult> UpdateCartItem(int cartItemId, UpdateCartItemDto updateDto)
     {
         var (userId, sessionId) = GetCartIdentifier();
-        var updatedCart = await cartService.UpdateCartItemAsync(userId, sessionId, cartItemId, updateDto);
+        var updatedCart = await cartService.UpdateCartItemAsync(
+            userId,
+            sessionId,
+            cartItemId,
+            updateDto
+        );
 
         if (updatedCart == null)
         {
-            return Problem(detail: $"Could not update cart item. Item {cartItemId} not found in your cart.", statusCode: StatusCodes.Status400BadRequest);
+            return Problem(
+                detail: $"Cart item {cartItemId} not found in your cart.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(updatedCart);
@@ -82,8 +93,16 @@ public class CartController(ICartService cartService) : ControllerBase
     public async Task<IActionResult> DeleteCartItem(int cartItemId)
     {
         var (userId, sessionId) = GetCartIdentifier();
-        await cartService.DeleteCartItemAsync(userId, sessionId, cartItemId);
+        var deleted = await cartService.DeleteCartItemAsync(userId, sessionId, cartItemId);
+
+        if (!deleted)
+        {
+            return Problem(
+                detail: $"Cart item {cartItemId} not found in your cart.",
+                statusCode: StatusCodes.Status404NotFound
+            );
+        }
+
         return NoContent();
     }
 }
-

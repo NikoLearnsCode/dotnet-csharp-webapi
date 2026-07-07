@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 public class CartDto
 {
@@ -57,5 +57,10 @@ public class AddToCartDto
 
 public class UpdateCartItemDto
 {
+    [Range(
+        1,
+        100,
+        ErrorMessage = "Quantity must be between 1 and 100. Use DELETE to remove the item."
+    )]
     public int Quantity { get; set; }
 }

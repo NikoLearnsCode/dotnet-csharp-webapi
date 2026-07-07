@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace dotnet_backend_2.Data.Entities;
+namespace WebApi.Data.Entities;
 
 [Index(nameof(UrlSlug), IsUnique = true)]
 public class Product

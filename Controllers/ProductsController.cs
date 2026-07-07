@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using WebApi.DTOs;
+using WebApi.Services;
 
-namespace dotnet_backend_2.Controllers;
+namespace WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -12,6 +12,7 @@ public class ProductsController(IProductService productService) : ControllerBase
     // Page pagination
     private static readonly List<int> AllowedPageSizes = [10, 25, 50, 100];
     private const int DefaultPageSize = 10;
+
     [HttpGet]
     public async Task<ActionResult<PagedList<ProductDto>>> GetProducts(
         bool includeCategories = true,
@@ -19,14 +20,27 @@ public class ProductsController(IProductService productService) : ControllerBase
         string? categorySlug = null,
         int page = 1,
         int pageSize = DefaultPageSize,
-        bool includeImages = true)
+        bool includeImages = true
+    )
     {
+        if (page < 1)
+        {
+            page = 1;
+        }
+
         if (!AllowedPageSizes.Contains(pageSize))
         {
             pageSize = DefaultPageSize;
         }
 
-        var products = await productService.GetAllAsync(page, pageSize, includeCategories, slug, categorySlug, includeImages);
+        var products = await productService.GetAllAsync(
+            page,
+            pageSize,
+            includeCategories,
+            slug,
+            categorySlug,
+            includeImages
+        );
 
         return Ok(products);
     }
@@ -34,21 +48,33 @@ public class ProductsController(IProductService productService) : ControllerBase
     // Cursor pagination
     private const int MaxCursorPageSize = 30;
     private const int DefaultCursorPageSize = 12;
+
     [HttpGet("cursor")]
     public async Task<ActionResult<CursorPagedList<ProductDto>>> GetProductsCursor(
-    bool includeCategories = true,
-    int limit = DefaultCursorPageSize,
-    string? cursor = null,
-    string? categorySlug = null,
-    string? searchTerm = null
+        bool includeCategories = true,
+        int limit = DefaultCursorPageSize,
+        string? cursor = null,
+        string? categorySlug = null,
+        string? searchTerm = null
     )
     {
+        if (limit < 1)
+        {
+            limit = DefaultCursorPageSize;
+        }
+
         if (limit > MaxCursorPageSize)
         {
             limit = MaxCursorPageSize;
         }
 
-        var products = await productService.GetAllCursorAsync(includeCategories, limit, cursor, categorySlug, searchTerm);
+        var products = await productService.GetAllCursorAsync(
+            includeCategories,
+            limit,
+            cursor,
+            categorySlug,
+            searchTerm
+        );
         return Ok(products);
     }
 
@@ -59,20 +85,29 @@ public class ProductsController(IProductService productService) : ControllerBase
 
         if (product == null)
         {
-            return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+            return Problem(
+                detail: $"Product with ID {id} not found.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(product);
     }
 
     [HttpGet("{slug}")]
-    public async Task<ActionResult<ProductWithRelatedDto>> GetProductBySlug(string slug, bool includeCategories = true)
+    public async Task<ActionResult<ProductWithRelatedDto>> GetProductBySlug(
+        string slug,
+        bool includeCategories = true
+    )
     {
         var result = await productService.GetBySlugAsync(slug, includeCategories);
 
         if (result == null)
         {
-            return Problem(detail: $"Product with slug '{slug}' not found.", statusCode: StatusCodes.Status404NotFound);
+            return Problem(
+                detail: $"Product with slug '{slug}' not found.",
+                statusCode: StatusCodes.Status404NotFound
+            );
         }
 
         return Ok(result);
@@ -87,7 +122,6 @@ public class ProductsController(IProductService productService) : ControllerBase
             var product = await productService.CreateAsync(createDto);
 
             return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
-
         }
         catch (InvalidOperationException ex)
         {
@@ -104,7 +138,10 @@ public class ProductsController(IProductService productService) : ControllerBase
             var product = await productService.UpdateAsync(id, updateDto);
 
             if (product is null)
-                return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+                return Problem(
+                    detail: $"Product with ID {id} not found.",
+                    statusCode: StatusCodes.Status404NotFound
+                );
 
             return Ok(product);
         }
@@ -118,11 +155,22 @@ public class ProductsController(IProductService productService) : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteProduct(int id)
     {
-        var success = await productService.DeleteAsync(id);
+        try
+        {
+            var success = await productService.DeleteAsync(id);
 
-        if (!success)
-            return Problem(detail: $"Product with ID {id} not found.", statusCode: StatusCodes.Status404NotFound);
+            if (!success)
+                return Problem(
+                    detail: $"Product with ID {id} not found.",
+                    statusCode: StatusCodes.Status404NotFound
+                );
 
-        return NoContent();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // The product exists but is referenced by existing orders.
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
     }
 }

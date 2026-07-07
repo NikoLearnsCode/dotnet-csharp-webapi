@@ -1,14 +1,18 @@
-using dotnet_backend_2.Data;
-using dotnet_backend_2.Data.Entities;
-using dotnet_backend_2.DTOs;
-using dotnet_backend_2.Mapping;
 using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
+using WebApi.Data.Entities;
+using WebApi.DTOs;
+using WebApi.Mapping;
 
-namespace dotnet_backend_2.Services;
+namespace WebApi.Services;
 
 public class OrderService(ApplicationDbContext context) : IOrderService
 {
-    public async Task<OrderResponseDto?> CreateOrderFromCartAsync(int? userId, string? sessionId, CreateOrderFromCartDto orderDto)
+    public async Task<OrderResponseDto?> CreateOrderFromCartAsync(
+        int? userId,
+        string? sessionId,
+        CreateOrderFromCartDto orderDto
+    )
     {
         // Validation: requires either userId or sessionId.
         if (!userId.HasValue && string.IsNullOrWhiteSpace(sessionId))
@@ -17,12 +21,13 @@ public class OrderService(ApplicationDbContext context) : IOrderService
         }
 
         // Load cart with items (same query strategy as CartService).
-        var cart = await context.Carts
-            .Include(c => c.Items)
-                .ThenInclude(ci => ci.Product)
+        var cart = await context
+            .Carts.Include(c => c.Items)
+            .ThenInclude(ci => ci.Product)
             .FirstOrDefaultAsync(c =>
-                (userId.HasValue && c.UserId == userId) ||
-                (sessionId != null && c.SessionId == sessionId));
+                (userId.HasValue && c.UserId == userId)
+                || (sessionId != null && c.SessionId == sessionId)
+            );
 
         // Ensure cart exists and contains items.
         if (cart == null || cart.Items.Count == 0)
@@ -44,9 +49,9 @@ public class OrderService(ApplicationDbContext context) : IOrderService
             {
                 Street = orderDto.ShippingAddress.Street,
                 PostalCode = orderDto.ShippingAddress.PostalCode,
-                City = orderDto.ShippingAddress.City
+                City = orderDto.ShippingAddress.City,
             },
-            OrderItems = []
+            OrderItems = [],
         };
 
         // Copy cart items and store price snapshot.
@@ -57,12 +62,14 @@ public class OrderService(ApplicationDbContext context) : IOrderService
             var lineTotal = unitPrice * cartItem.Quantity;
             totalAmount += lineTotal;
 
-            order.OrderItems.Add(new OrderItem
-            {
-                ProductId = cartItem.ProductId!.Value,
-                Quantity = cartItem.Quantity,
-                UnitPrice = unitPrice // Price at checkout time.
-            });
+            order.OrderItems.Add(
+                new OrderItem
+                {
+                    ProductId = cartItem.ProductId!.Value,
+                    Quantity = cartItem.Quantity,
+                    UnitPrice = unitPrice, // Price at checkout time.
+                }
+            );
         }
         order.TotalAmount = totalAmount;
 
@@ -86,20 +93,24 @@ public class OrderService(ApplicationDbContext context) : IOrderService
             return [];
         }
 
-        var query = context.Orders
-            .AsNoTracking()
-            .Where(o => (userId.HasValue && o.UserId == userId) ||
-                       (sessionId != null && o.SessionId == sessionId))
+        var query = context
+            .Orders.AsNoTracking()
+            .Where(o =>
+                (userId.HasValue && o.UserId == userId)
+                || (sessionId != null && o.SessionId == sessionId)
+            )
             .OrderByDescending(o => o.OrderDate);
 
-        var orders = await query
-            .ProjectToDto()
-            .ToListAsync();
+        var orders = await query.ProjectToDto().ToListAsync();
 
         return orders;
     }
 
-    public async Task<OrderResponseDto?> GetOrderByIdAsync(int orderId, int? userId, string? sessionId)
+    public async Task<OrderResponseDto?> GetOrderByIdAsync(
+        int orderId,
+        int? userId,
+        string? sessionId
+    )
     {
         // Validation: requires either userId or sessionId.
         if (!userId.HasValue && string.IsNullOrWhiteSpace(sessionId))
@@ -107,30 +118,38 @@ public class OrderService(ApplicationDbContext context) : IOrderService
             return null;
         }
 
-        var order = await context.Orders
-            .AsNoTracking()
-            .Where(o => o.Id == orderId &&
-                       ((userId.HasValue && o.UserId == userId) ||
-                        (sessionId != null && o.SessionId == sessionId)))
+        var order = await context
+            .Orders.AsNoTracking()
+            .Where(o =>
+                o.Id == orderId
+                && (
+                    (userId.HasValue && o.UserId == userId)
+                    || (sessionId != null && o.SessionId == sessionId)
+                )
+            )
             .ProjectToDto()
             .FirstOrDefaultAsync();
 
         return order;
     }
 
-    public async Task<OrderResponseDto?> GetOrderByConfirmationTokenAsync(int orderId, string confirmationToken)
+    public async Task<OrderResponseDto?> GetOrderByConfirmationTokenAsync(
+        int orderId,
+        string confirmationToken
+    )
     {
         var expirationLimit = DateTime.UtcNow.AddDays(-7);
 
-        var order = await context.Orders
-            .AsNoTracking()
-            .Where(o => o.Id == orderId
-                        && o.ConfirmationToken == confirmationToken
-                        && o.OrderDate > expirationLimit)
+        var order = await context
+            .Orders.AsNoTracking()
+            .Where(o =>
+                o.Id == orderId
+                && o.ConfirmationToken == confirmationToken
+                && o.OrderDate > expirationLimit
+            )
             .ProjectToDto()
             .FirstOrDefaultAsync();
 
         return order;
     }
 }
-

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace dotnet_backend_2.DTOs;
+namespace WebApi.DTOs;
 
 public record RegisterDto
 {
@@ -11,8 +11,10 @@ public record RegisterDto
 
     [Required(ErrorMessage = "Password is required.")]
     [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
-    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
-        ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, and one number.")]
+    [RegularExpression(
+        @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
+        ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, and one number."
+    )]
     public required string Password { get; init; }
 }
 
@@ -20,13 +22,9 @@ public record LoginDto
 {
     [Required(ErrorMessage = "Please provide a username.")]
     public required string Username { get; init; }
+
     [Required(ErrorMessage = "Please provide a password.")]
     public required string Password { get; init; }
 }
 
-public record LoginResponseDto(
-    string Username,
-    string Role,
-    int UserId
-);
-
+public record LoginResponseDto(string Username, string Role, int UserId);

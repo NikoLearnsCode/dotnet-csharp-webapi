@@ -1,34 +1,39 @@
-using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
-namespace dotnet_backend_2.Data.Entities;
+namespace WebApi.Data.Entities;
 
 public class Order
 {
     public int Id { get; set; }
-    public DateTime OrderDate { get; set; }
+    public DateTime OrderDate { get; init; }
 
+    // Computed from the order items after construction (OrderService), so not init-only.
     [Column(TypeName = "decimal(18,2)")]
     public decimal TotalAmount { get; set; }
+
+    // Mutable through the order lifecycle.
     public OrderStatus Status { get; set; }
 
     [Required]
     [MaxLength(36)]
-    public string ConfirmationToken { get; set; } = null!;
+    public string ConfirmationToken { get; init; } = null!;
 
-    public int? UserId { get; set; }
+    public int? UserId { get; init; }
+
+    [ForeignKey("UserId")]
     public User? User { get; set; }
 
     [MaxLength(450)]
-    public string? SessionId { get; set; }
+    public string? SessionId { get; init; }
 
     [Required]
     [MaxLength(256)]
-    public string Email { get; set; } = null!;
+    public string Email { get; init; } = null!;
 
     [MaxLength(20)]
-    public string? PhoneNumber { get; set; }
+    public string? PhoneNumber { get; init; }
 
     public Address ShippingAddress { get; set; } = null!;
 
@@ -43,19 +48,19 @@ public class OrderItem
     public Order Order { get; set; } = null!;
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
-    public int Quantity { get; set; }
+    public int Quantity { get; init; }
 
     // Price captured at the time the order was placed.
     [Column(TypeName = "decimal(18,2)")]
-    public decimal UnitPrice { get; set; }
+    public decimal UnitPrice { get; init; }
 }
 
 [Owned]
 public class Address
 {
-    public string Street { get; set; } = null!;
-    public string PostalCode { get; set; } = null!;
-    public string City { get; set; } = null!;
+    public string Street { get; init; } = null!;
+    public string PostalCode { get; init; } = null!;
+    public string City { get; init; } = null!;
 }
 
 // Order status.
@@ -65,6 +70,5 @@ public enum OrderStatus
     Processing,
     Shipped,
     Completed,
-    Cancelled
+    Cancelled,
 }
-
